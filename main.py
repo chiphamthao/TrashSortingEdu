@@ -48,9 +48,8 @@ COLOR_ACCENT = (128, 64, 255)
 CONFIRMATION_SEC = 2.0   # how long the same finger count must be held to confirm
 COOLDOWN_SEC = 1.0       # wait before accepting next selection after confirm
 
-# finger landmark indices for tips and pips
 TIP_IDS = [8, 12, 16, 20]     # index, middle, ring, pinky tips
-PIP_IDS = [6, 10, 14, 18]     # their PIP joints (one joint below tip)
+PIP_IDS = [6, 10, 14, 18]     # one joint below tip
 
 def count_extended_fingers(landmarks, handedness_label: str) -> int:
     """
@@ -83,15 +82,13 @@ def draw_panel(frame, q: Question, choice_hover: Optional[str], progress: float,
     correct, total = score
     cv.putText(frame, f"Score: {correct}/{total}", (w - 220, 40), FONT, 0.9, COLOR_OK, 2, cv.LINE_AA)
 
-    # --- question prompt (single line, no wrapping) ---
-    y0 = 170  # space below banner
+    y0 = 170
     scale = 0.8
     thickness = 2
     cv.putText(frame, q.prompt, (pad, y0), FONT, scale, COLOR_TEXT, thickness, cv.LINE_AA)
 
-    # estimate text height so we know where to start choices
     (_, text_h), _ = cv.getTextSize(q.prompt, FONT, scale, thickness)
-    choices_y = y0 + text_h + 30   # 30px gap under question
+    choices_y = y0 + text_h + 30  
 
     # choice boxes
     box_w = w - 2*pad
@@ -120,12 +117,11 @@ def draw_panel(frame, q: Question, choice_hover: Optional[str], progress: float,
     cv.rectangle(frame, (bx1, by1), (bx1 + bar_w, by1 + bar_h), (60, 60, 80), -1)
     if progress > 0:
         cv.rectangle(frame, (bx1, by1), (bx2, by1 + bar_h), COLOR_ACCENT, -1)
-    cv.putText(frame, "Hold steady to confirm", (pad, by1 - 8), FONT, 0.55, COLOR_HINT, 1, cv.LINE_AA)
 
 def run_quiz():
     cap = cv.VideoCapture(0)
     if not cap.isOpened():
-        raise SystemExit("Could not open camera. Check permissions and device index.")
+        raise SystemExit("Could not open camera. Check permissions.")
 
     hands = mp_hands.Hands(
         static_image_mode=False,
@@ -150,10 +146,9 @@ def run_quiz():
         if not ok:
             break
 
-        frame = cv.flip(frame, 1)  # mirror for natural interaction
+        frame = cv.flip(frame, 1) 
         rgb = cv.cvtColor(frame, cv.COLOR_BGR2RGB)
 
-        # MediaPipe inference
         results = hands.process(rgb)
 
         n_up = 0
@@ -161,7 +156,7 @@ def run_quiz():
 
         if results.multi_hand_landmarks and results.multi_handedness:
             hand_landmarks = results.multi_hand_landmarks[0]
-            handed_label = results.multi_handedness[0].classification[0].label  # 'Left' or 'Right'
+            handed_label = results.multi_handedness[0].classification[0].label 
             n_up = count_extended_fingers(hand_landmarks.landmark, handed_label)
             hover_choice = fingers_to_choice(n_up)
 
@@ -174,7 +169,7 @@ def run_quiz():
                 mp_styles.get_default_hand_connections_style(),
             )
 
-        # dwell logic (confirm only if not in cooldown)
+        # wait logic
         now = time.time()
         progress = 0.0
         if hover_choice is None or (now - last_confirm_t) < COOLDOWN_SEC:
@@ -200,7 +195,7 @@ def run_quiz():
                     else:
                         flash_banner(frame, f"{confirmed} is wrong. Correct: {q.correct}", COLOR_BAD)
                     cv.imshow(WINDOW_NAME, frame)
-                    cv.waitKey(500)  # brief flash
+                    cv.waitKey(500) 
 
                     # Next question
                     q_idx += 1
@@ -211,38 +206,16 @@ def run_quiz():
                         key = cv.waitKey(2500) & 0xFF
                         break
 
-                    # reset dwell
+                    # reset progress
                     last_choice = None
                     choice_start_t = None
                     progress = 0.0
 
-        # draw UI
-        draw_panel(
-            frame,
-            QUESTIONS[q_idx],
-            hover_choice,
-            progress,
-            (score_correct, total_answered),
-        )
-
-        # footer hints
-        h, w = frame.shape[:2]
-
+        draw_panel(frame,QUESTIONS[q_idx],hover_choice,progress,(score_correct, total_answered),)
         cv.imshow(WINDOW_NAME, frame)
         key = cv.waitKey(1) & 0xFF
         if key == ord('q'):
             break
-        elif key == ord('n'):
-            # skip
-            q_idx += 1
-            if q_idx >= len(QUESTIONS):
-                show_final(frame, score_correct, total_answered)
-                cv.imshow(WINDOW_NAME, frame)
-                cv.waitKey(2000)
-                break
-            last_choice = None
-            choice_start_t = None
-            last_confirm_t = time.time()
 
     hands.close()
     cap.release()
@@ -267,9 +240,9 @@ def show_final(frame, correct: int, total: int):
     hint_msg = "Press 'q' to close"
     center_y = h // 2
 
-    put_centered_text(frame, msg,        center_y - 40, FONT, 1.8, (255, 255, 255), 3)
-    put_centered_text(frame, score_msg,  center_y + 10,  FONT, 1.3, COLOR_OK,        3)
-    put_centered_text(frame, hint_msg,   center_y + 60,  FONT, 0.9, COLOR_HINT,      2)
+    put_centered_text(frame, msg, center_y - 40, FONT, 1.8, (255, 255, 255), 3)
+    put_centered_text(frame, score_msg, center_y + 10,  FONT, 1.3, COLOR_OK, 3)
+    put_centered_text(frame, hint_msg, center_y + 60,  FONT, 0.9, COLOR_HINT, 2)
 
 if __name__ == "__main__":
     run_quiz()
