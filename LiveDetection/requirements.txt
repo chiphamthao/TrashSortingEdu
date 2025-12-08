@@ -1,0 +1,10 @@
+ultralytics>=8.0.0
+opencv-python
+albumentations>=1.3.0
+pycocotools
+numpy
+pillow
+matplotlib
+seaborn
+scikit-learn
+tqdm
