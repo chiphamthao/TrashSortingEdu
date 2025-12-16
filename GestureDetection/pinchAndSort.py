@@ -12,7 +12,10 @@ import mediapipe as mp
 from utils.draw_banner import draw_banner
 from utils.norm_to_px import norm_to_px
 from utils.load_item import load_item
-from utils.draw_text_centered import draw_text_centered
+from utils.dist import dist
+from utils.overlay_at_center import overlay_at_center
+from utils.put_centered import put_centered
+from utils.bins import compute_bins, draw_bins
 
 mp_hands = mp.solutions.hands
 mp_draw = mp.solutions.drawing_utils
@@ -85,24 +88,21 @@ ITEM_FILES = {
 
 ITEM_IMAGES = {k: load_item(f"data/{v}", ITEM_RADIUS) for k, v in ITEM_FILES.items()}
 
-def l2(a, b):
-    return float(np.linalg.norm(np.array(a, dtype=np.float32) - np.array(b, dtype=np.float32)))
-
 def pinch_state(landmarks_px, bounds, was_pinched):
     p_thumb = landmarks_px[THUMB_TIP]
     p_index = landmarks_px[INDEX_TIP]
-    dist = l2(p_thumb, p_index)
-    span = l2(landmarks_px[INDEX_MCP], landmarks_px[PINKY_MCP])
+    d = dist(p_thumb, p_index)
+    span = dist(landmarks_px[INDEX_MCP], landmarks_px[PINKY_MCP])
 
     on_t = bounds[0] * span
     off_t = bounds[1] * span
 
     if was_pinched:
-        return dist < off_t
+        return d < off_t
     else:
-        return dist < on_t
+        return d < on_t
 
-def bin_hit(pos, bins) -> Optional[str]:
+def bin_hit(pos, bins):
     x, y = pos
     R = 2 * ITEM_RADIUS
 
@@ -124,44 +124,8 @@ def final_screen(frame, score_correct):
                FONT, 1.2, (120, 255, 120), 3, cv.LINE_AA)
     cv.putText(frame, "Press 'q' to exit", (40, 290), FONT, 0.9, (220, 220, 220), 2, cv.LINE_AA)
 
-def overlay_at_center(frame, overlay, center):
-    if overlay is None or overlay.shape[2] < 4:
-        return
-
-    h, w = frame.shape[:2]
-    oh, ow = overlay.shape[:2]
-    cx, cy = center
-
-    x1 = int(cx - ow / 2)
-    y1 = int(cy - oh / 2)
-    x2 = x1 + ow
-    y2 = y1 + oh
-
-    x1_clamp = max(0, x1)
-    y1_clamp = max(TOP_BANNER, y1)
-    x2_clamp = min(w, x2)
-    y2_clamp = min(h, y2)
-
-    if x1_clamp >= x2_clamp or y1_clamp >= y2_clamp:
-        return
-
-    ox1 = x1_clamp - x1
-    oy1 = y1_clamp - y1
-    ox2 = ox1 + (x2_clamp - x1_clamp)
-    oy2 = oy1 + (y2_clamp - y1_clamp)
-
-    roi = frame[y1_clamp:y2_clamp, x1_clamp:x2_clamp]
-    ov = overlay[oy1:oy2, ox1:ox2]
-
-    alpha = ov[:, :, 3] / 255.0
-    alpha = alpha[..., None]
-    rgb = ov[:, :, :3]
-    roi[:] = (alpha * rgb + (1 - alpha) * roi).astype(np.uint8)
-
 def spawn_items(w, h, bins_y_top) -> List[ActiveItem]:
-    items_pool: List[Item] = ITEMS.copy()
-    random.shuffle(items_pool)
-    items_pool = items_pool[:NUM_ITEMS_ON_SCREEN]
+    items_pool = random.sample(ITEMS, k=NUM_ITEMS_ON_SCREEN)
 
     active_items: List[ActiveItem] = []
     for it in items_pool:
@@ -189,14 +153,12 @@ def main():
     grabbed_index: Optional[int] = None
     hold_offset = (0, 0)
     score_correct = 0
-    score_total = 0  
 
     msg = ""
     msg_until = 0.0
     msg_color = ACCENT
 
     game_start_time = time.time()
-    remaining_time = GAME_TIME_LIMIT
 
     while True:
         ok, frame = cap.read()
@@ -215,7 +177,7 @@ def main():
 
         cv.rectangle(frame, (0, 0), (w, TOP_BANNER), (45, 45, 60), -1)
         cv.putText(frame,
-            "Multi-item sorting: pinch to grab an item and drop it into the correct bin",
+            "Pinch to grab an item and drop it into the correct bin",
             (12, 50),
             FONT,
             0.6,
@@ -224,25 +186,12 @@ def main():
             cv.LINE_AA,
         )
 
-        bins = []
-        usable_w = w - (len(BINS) + 1) * BIN_GAP
-        bin_w = max(80, usable_w // len(BINS))
-        y1 = h - BIN_HEIGHT - 12
-        for i, (label, color) in enumerate(BINS):
-            x1 = BIN_GAP + i * (bin_w + BIN_GAP)
-            x2 = x1 + bin_w
-            y2 = y1 + BIN_HEIGHT
-            bins.append((label, color, (x1, y1, x2, y2)))
-
-        for label, color, (bx1, by1, bx2, by2) in bins:
-            cv.rectangle(frame, (bx1, by1), (bx2, by2), color, -1)
-            cv.rectangle(frame, (bx1, by1), (bx2, by2), (255, 255, 255), 2)
-            cv.putText(frame, label, (bx1 + 10, by2 - 12), FONT, 0.7, (255, 255, 255), 2, cv.LINE_AA)
+        bins, y1 = compute_bins(w, h, BINS, BIN_GAP, BIN_HEIGHT, bottom_pad=12)
+        draw_bins(frame, bins, FONT)
 
         if not active_items:
             active_items = spawn_items(w, h, y1)
 
-        finger_tip_px = None
         if res.multi_hand_landmarks:
             lm = res.multi_hand_landmarks[0].landmark
             lm_px = {i: norm_to_px(lm[i], w, h) for i in [THUMB_TIP, INDEX_TIP, INDEX_MCP, PINKY_MCP]}
@@ -257,13 +206,13 @@ def main():
                 mp_styles.get_default_hand_connections_style(),
             )
 
-            if grabbed_index is None and is_pinched and finger_tip_px is not None:
+            if grabbed_index is None and is_pinched:
                 closest_idx = None
                 closest_dist = float("inf")
                 for idx, a in enumerate(active_items):
                     if not a.active:
                         continue
-                    d = l2(finger_tip_px, a.pos)
+                    d = dist(finger_tip_px, a.pos)
                     if d < closest_dist:
                         closest_dist = d
                         closest_idx = idx
@@ -272,7 +221,7 @@ def main():
                     ax, ay = active_items[grabbed_index].pos
                     hold_offset = (ax - finger_tip_px[0], ay - finger_tip_px[1])
 
-            if grabbed_index is not None and finger_tip_px is not None:
+            if grabbed_index is not None:
                 new_x = finger_tip_px[0] + hold_offset[0]
                 new_y = finger_tip_px[1] + hold_offset[1]
                 active_items[grabbed_index].pos = (new_x, new_y)
@@ -281,16 +230,15 @@ def main():
                     dropped_item = active_items[grabbed_index]
                     dropped_label = bin_hit(dropped_item.pos, bins)
                     if dropped_label is not None:
-                        score_total += 1
                         correct_label = dropped_item.item.correct_bin
                         if dropped_label == correct_label:
                             score_correct += 1
                             msg = f"Correct! {dropped_item.item.name} -> {correct_label}"
-                            msg_color = (80, 200, 80)      # green
+                            msg_color = (80, 200, 80)   
                             msg_until = time.time() + 1.2
                         else:
                             msg = f"Oops! {dropped_item.item.name} is {correct_label}"
-                            msg_color = (60, 60, 255)      # red
+                            msg_color = (60, 60, 255)   
                             msg_until = time.time() + 1.6
                         dropped_item.active = False
                     grabbed_index = None
@@ -303,10 +251,8 @@ def main():
             y = int(np.clip(a.pos[1], TOP_BANNER + ITEM_RADIUS, y1 - ITEM_RADIUS))
             a.pos = (x, y)
 
-            img = ITEM_IMAGES.get(a.item.name)
-            if img is not None:
-                overlay_at_center(frame, img, a.pos)
-            draw_text_centered(frame, a.item.name, (x, y - ITEM_RADIUS - 25), 0.8, (240, 240, 240), 2)
+            overlay_at_center(frame, ITEM_IMAGES[a.item.name], a.pos, TOP_BANNER)
+            put_centered(frame, a.item.name, (x, y - ITEM_RADIUS - 25), 0.8, (240, 240, 240), 2, FONT)
 
         now = time.time()
         elapsed = now - game_start_time
@@ -315,8 +261,8 @@ def main():
         cv.putText(frame, f"Correct: {score_correct}/10", (w - 320, 30), FONT, 0.7, (120, 255, 120), 2, cv.LINE_AA)
         cv.putText(frame, f"Time: {int(remaining_time)}s", (w - 320, 55), FONT, 0.7, (255, 255, 255), 2, cv.LINE_AA)
 
-        if time.time() < msg_until:
-            draw_banner(frame, msg, msg_color)
+        if now < msg_until:
+            draw_banner(frame, msg, msg_color, FONT)
 
         all_sorted = all(not a.active for a in active_items)
 
