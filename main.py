@@ -6,6 +6,8 @@ import time
 from dataclasses import dataclass
 from typing import List, Optional, Tuple
 import mediapipe as mp
+from utils.draw_banner import draw_banner
+from utils.draw_text_centered import draw_text_centered
 
 mp_hands = mp.solutions.hands
 mp_drawing = mp.solutions.drawing_utils
@@ -41,7 +43,6 @@ COLOR_BG = (30, 30, 30)
 COLOR_TEXT = (0.0, 0.0, 0.0)
 COLOR_HINT = (180, 180, 180)
 COLOR_OK = (60, 180, 75)
-COLOR_WARN = (0, 165, 255)
 COLOR_BAD = (50, 50, 230)
 COLOR_ACCENT = (128, 64, 255)
 
@@ -51,7 +52,7 @@ COOLDOWN_SEC = 1.0       # wait before accepting next selection after confirm
 TIP_IDS = [8, 12, 16, 20]     # index, middle, ring, pinky tips
 PIP_IDS = [6, 10, 14, 18]     # one joint below tip
 
-def count_extended_fingers(landmarks, handedness_label: str) -> int:
+def count_extended_fingers(landmarks):
     """
     A finger is up if tip.y < pip.y. Ignore thumb
     """
@@ -63,7 +64,7 @@ def count_extended_fingers(landmarks, handedness_label: str) -> int:
             up += 1
     return up
 
-def fingers_to_choice(n_up: int) -> Optional[str]:
+def fingers_to_choice(n_up: int):
     return {1: "A", 2: "B", 3: "C", 4: "D"}.get(n_up)
 
 def draw_panel(frame, q: Question, choice_hover: Optional[str], progress: float, score: Tuple[int,int]):
@@ -145,19 +146,16 @@ def run_quiz():
         ok, frame = cap.read()
         if not ok:
             break
-
         frame = cv.flip(frame, 1) 
         rgb = cv.cvtColor(frame, cv.COLOR_BGR2RGB)
-
         results = hands.process(rgb)
 
         n_up = 0
         hover_choice = None
 
-        if results.multi_hand_landmarks and results.multi_handedness:
+        if results.multi_hand_landmarks:
             hand_landmarks = results.multi_hand_landmarks[0]
-            handed_label = results.multi_handedness[0].classification[0].label 
-            n_up = count_extended_fingers(hand_landmarks.landmark, handed_label)
+            n_up = count_extended_fingers(hand_landmarks.landmark)
             hover_choice = fingers_to_choice(n_up)
 
             # draw landmarks
@@ -191,9 +189,9 @@ def run_quiz():
                     total_answered += 1
                     if is_correct:
                         score_correct += 1
-                        flash_banner(frame, f"{confirmed} is correct!", COLOR_OK)
+                        draw_banner(frame, f"{confirmed} is correct!", COLOR_OK)
                     else:
-                        flash_banner(frame, f"{confirmed} is wrong. Correct: {q.correct}", COLOR_BAD)
+                        draw_banner(frame, f"{confirmed} is wrong. Correct: {q.correct}", COLOR_BAD)
                     cv.imshow(WINDOW_NAME, frame)
                     cv.waitKey(500) 
 
@@ -221,17 +219,6 @@ def run_quiz():
     cap.release()
     cv.destroyAllWindows()
 
-def flash_banner(frame, text: str, color):
-    h, w = frame.shape[:2]
-    cv.rectangle(frame, (0, 0), (w, 80), color, thickness=-1)
-    cv.putText(frame, text, (16, 50), FONT, 1.1, (255, 255, 255), 3, cv.LINE_AA)
-
-def put_centered_text(frame, text, y, font, scale, color, thickness):
-    h, w = frame.shape[:2]
-    (text_w, text_h), _ = cv.getTextSize(text, font, scale, thickness)
-    x = (w - text_w) // 2
-    cv.putText(frame, text, (x, y), font, scale, color, thickness, cv.LINE_AA)
-
 def show_final(frame, correct: int, total: int):
     h, w = frame.shape[:2]
     cv.rectangle(frame, (0, 0), (w, h), COLOR_BG, thickness=-1)
@@ -240,9 +227,9 @@ def show_final(frame, correct: int, total: int):
     hint_msg = "Press 'q' to close"
     center_y = h // 2
 
-    put_centered_text(frame, msg, center_y - 40, FONT, 1.8, (255, 255, 255), 3)
-    put_centered_text(frame, score_msg, center_y + 10,  FONT, 1.3, COLOR_OK, 3)
-    put_centered_text(frame, hint_msg, center_y + 60,  FONT, 0.9, COLOR_HINT, 2)
+    draw_text_centered(frame, msg, center_y - 40, FONT, 1.8, (255, 255, 255), 3)
+    draw_text_centered(frame, score_msg, center_y + 10,  FONT, 1.3, COLOR_OK, 3)
+    draw_text_centered(frame, hint_msg, center_y + 60,  FONT, 0.9, COLOR_HINT, 2)
 
 if __name__ == "__main__":
     run_quiz()
