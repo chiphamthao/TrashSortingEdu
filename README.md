@@ -39,14 +39,15 @@ This will install all necessary packages including `ultralytics`, `opencv-python
 
 ### Root Directory
 
-#### `main.py` - Interactive Waste Sorting Quiz
+### GestureDetection/ Directory - Interactive Trash Sorting Quiz
 
-An educational quiz application that uses MediaPipe hand tracking to allow users to answer multiple-choice questions by holding up 1-4 fingers.
+An educational application that has two interactive modes: a multiple-choice quiz where users answer questions by holding up 1–4 fingers, and a gesture-based sorting game where users pinch and drag virtual trash items into the correct bins.
 
 **Features:**
 
 - Real-time hand gesture recognition (1-4 fingers = A, B, C, D choices)
 - Multiple-choice questions about waste sorting
+- Gesture-based pinch interaction to grab and sort virtual trash items into bins
 - Score tracking and progress visualization
 - Dwell-time confirmation to prevent accidental selections
 - Visual feedback with color-coded responses
@@ -60,12 +61,20 @@ python pinchAndSort.py
 ```
 
 **Controls:**
-
+Finger Raise MCQ:
 - Hold up 1-4 fingers to select answer (1=A, 2=B, 3=C, 4=D)
 - Hold steady for 2 seconds to confirm selection
 - Press 'q' to quit
 - Press 'n' to skip to next question
 
+Pinch and Sort:		
+- Pinch your thumb and index finger together to grab a trash item
+- Drag the item by moving your pinched fingers
+- Release the pinch to drop the item into a bin
+- Drop items into the correct bin (Recycling, Compost, or Landfill) to score points
+- Sort as many items as possible before the timer runs out
+- Press 'q' to quit
+- 
 **Tips:**
 
 - Ensure good lighting for hand detection
