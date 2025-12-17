@@ -40,7 +40,7 @@ QUESTIONS: List[Question] = [
 WINDOW_NAME = "Waste Sorting Quiz"
 FONT = cv.FONT_HERSHEY_SIMPLEX
 COLOR_BG = (30, 30, 30)
-COLOR_TEXT = (0.0, 0.0, 0.0)
+COLOR_TEXT = (0, 0, 0)
 COLOR_HINT = (180, 180, 180)
 COLOR_OK = (60, 180, 75)
 COLOR_BAD = (50, 50, 230)
@@ -51,6 +51,18 @@ COOLDOWN_SEC = 1.0       # wait before accepting next selection after confirm
 
 TIP_IDS = [8, 12, 16, 20]     # index, middle, ring, pinky tips
 PIP_IDS = [6, 10, 14, 18]     # one joint below tip
+
+def show_final(frame, correct, total):
+    h, w = frame.shape[:2]
+    cv.rectangle(frame, (0, 0), (w, h), COLOR_BG, thickness=-1)
+    msg = "Quiz Complete!"
+    score_msg = f"Score: {correct}/{total}"
+    hint_msg = "Press 'q' to close"
+    center_y = h // 2
+
+    draw_text_centered(frame, msg, center_y - 40, FONT, 1.8, (255, 255, 255), 3)
+    draw_text_centered(frame, score_msg, center_y + 10,  FONT, 1.3, COLOR_OK, 3)
+    draw_text_centered(frame, hint_msg, center_y + 60,  FONT, 0.9, COLOR_HINT, 2)
 
 def count_extended_fingers(landmarks):
     """
@@ -64,7 +76,7 @@ def count_extended_fingers(landmarks):
             up += 1
     return up
 
-def fingers_to_choice(n_up: int):
+def fingers_to_choice(n_up):
     return {1: "A", 2: "B", 3: "C", 4: "D"}.get(n_up)
 
 def draw_panel(frame, q: Question, choice_hover: Optional[str], progress: float, score: Tuple[int,int]):
@@ -158,7 +170,6 @@ def run_quiz():
             n_up = count_extended_fingers(hand_landmarks.landmark)
             hover_choice = fingers_to_choice(n_up)
 
-            # draw landmarks
             mp_drawing.draw_landmarks(
                 frame,
                 hand_landmarks,
@@ -189,9 +200,9 @@ def run_quiz():
                     total_answered += 1
                     if is_correct:
                         score_correct += 1
-                        draw_banner(frame, f"{confirmed} is correct!", COLOR_OK)
+                        draw_banner(frame, f"{confirmed} is correct!", COLOR_OK, FONT)
                     else:
-                        draw_banner(frame, f"{confirmed} is wrong. Correct: {q.correct}", COLOR_BAD)
+                        draw_banner(frame, f"{confirmed} is wrong. Correct: {q.correct}", COLOR_BAD, FONT)
                     cv.imshow(WINDOW_NAME, frame)
                     cv.waitKey(500) 
 
@@ -218,18 +229,6 @@ def run_quiz():
     hands.close()
     cap.release()
     cv.destroyAllWindows()
-
-def show_final(frame, correct: int, total: int):
-    h, w = frame.shape[:2]
-    cv.rectangle(frame, (0, 0), (w, h), COLOR_BG, thickness=-1)
-    msg = "Quiz Complete!"
-    score_msg = f"Score: {correct}/{total}"
-    hint_msg = "Press 'q' to close"
-    center_y = h // 2
-
-    draw_text_centered(frame, msg, center_y - 40, FONT, 1.8, (255, 255, 255), 3)
-    draw_text_centered(frame, score_msg, center_y + 10,  FONT, 1.3, COLOR_OK, 3)
-    draw_text_centered(frame, hint_msg, center_y + 60,  FONT, 0.9, COLOR_HINT, 2)
 
 if __name__ == "__main__":
     run_quiz()
