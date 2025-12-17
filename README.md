@@ -37,8 +37,6 @@ This will install all necessary packages including `ultralytics`, `opencv-python
 
 ## Scripts Overview
 
-### Root Directory
-
 ### GestureDetection/ Directory - Interactive Trash Sorting Quiz
 
 An educational application that has two interactive modes: a multiple-choice quiz where users answer questions by holding up 1–4 fingers, and a gesture-based sorting game where users pinch and drag virtual trash items into the correct bins.
