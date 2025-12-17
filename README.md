@@ -54,7 +54,9 @@ An educational quiz application that uses MediaPipe hand tracking to allow users
 **Usage:**
 
 ```bash
-python main.py
+cd GestureDetection
+python fingerRaise.py
+python pinchAndSort.py
 ```
 
 **Controls:**
