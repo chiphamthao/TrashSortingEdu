@@ -59,6 +59,7 @@ python pinchAndSort.py
 ```
 
 **Controls:**
+
 Finger Raise MCQ:
 - Hold up 1-4 fingers to select answer (1=A, 2=B, 3=C, 4=D)
 - Hold steady for 2 seconds to confirm selection
